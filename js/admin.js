@@ -8,12 +8,14 @@ import {
   escapeHtml, formatBytes, formatDate, getExtension, FILE_COLOR_MAP,
   showToast, askConfirm, askRename,
   openPreview, initPreviewOverlay, triggerDownload, closePreview,
-  mergesRef
+  db
 } from "./shared.js";
 import { uploadToDrive, deleteFromDrive, ensureAccessToken, isDriveConnected, signOutDrive, checkDuplicateInDrive, renameFileOnDrive } from "./drive.js";
-import { set, update, remove, child, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+import { set, update, remove, child, onValue, ref as dbRef } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 import { initThemeSwitch } from "./theme.js";
 import { hasValidSession, changePassword, getCurrentAuthVersion } from "./auth.js";
+
+const mergesRef = dbRef(db, "merges");
 
 initThemeSwitch("theme-switch");
 
