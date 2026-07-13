@@ -298,6 +298,7 @@ const mergeDownloadBtn = $("merge-download-btn");
 const mergeUploadStatus = $("merge-upload-status");
 const mergeDoneText = $("merge-done-text");
 const mergeCloseDoneBtn = $("merge-close-done-btn");
+const mergePreviewDoneBtn = $("merge-preview-done-btn");
 
 let mergeSelectedIds = new Set();
 let mergeSearchTerm = "";
@@ -619,6 +620,30 @@ if (mergeDownloadBtn) {
 if (mergeClose) mergeClose.addEventListener("click", closeMergeOverlay);
 if (mergeOverlay) mergeOverlay.addEventListener("click", (e) => { if (e.target === mergeOverlay) closeMergeOverlay(); });
 if (mergeCloseDoneBtn) mergeCloseDoneBtn.addEventListener("click", closeMergeOverlay);
+
+// "Bax" in step 5 — open the merged PDF in the preview overlay
+if (mergePreviewDoneBtn) {
+  mergePreviewDoneBtn.addEventListener("click", () => {
+    if (!pendingMerge) return;
+    const { previewUrl, outputName } = pendingMerge;
+    // Use the shared preview overlay to show the merged PDF
+    const prevOverlay = document.getElementById("preview-overlay");
+    const prevTitle = document.getElementById("preview-title");
+    const prevBody = document.getElementById("preview-body");
+    if (!prevOverlay || !prevTitle || !prevBody) return;
+    prevTitle.textContent = outputName + " (birləşdirilmiş PDF)";
+    prevBody.innerHTML = "";
+    const iframe = document.createElement("iframe");
+    iframe.src = previewUrl;
+    iframe.style.width = "100%";
+    iframe.style.height = "75vh";
+    iframe.style.border = "none";
+    iframe.style.borderRadius = "8px";
+    iframe.allow = "autoplay";
+    prevBody.appendChild(iframe);
+    prevOverlay.classList.remove("hidden");
+  });
+}
 
 // Open on button click
 if (mergeBtn) mergeBtn.addEventListener("click", openMergeOverlay);

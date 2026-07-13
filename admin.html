@@ -57,6 +57,7 @@
           <span id="drive-status-text">Google Drive qoşulmayıb</span>
         </button>
         <button id="drive-signout-btn" class="btn btn-ghost drive-signout hidden" type="button">Drivedən çıxış</button>
+        <button id="admin-merges-btn" class="btn btn-ghost" type="button">Merge PDF-lər</button>
         <button id="admin-settings-btn" class="btn btn-ghost" type="button">Yeni Şifrə</button>
         <button id="admin-exit" class="btn btn-ghost">İstifadəçi panelinə qayıt</button>
       </div>
@@ -203,6 +204,29 @@
 
 
       </div>
+    </section>
+
+    <!-- Merge PDF list -->
+    <section id="admin-merges-view" class="admin-view hidden">
+      <div class="admin-toolbar">
+        <div class="admin-toolbar-left">
+          <button id="admin-merges-back" class="icon-btn" aria-label="Geri">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <h1 class="admin-title">Merge PDF-lər</h1>
+        </div>
+      </div>
+      <div class="merge-admin-description">
+        <p>Google Drive-da "IstServices Merge Pdf" qovluğunda saxlanılan birləşdirilmiş PDF sənədləri.</p>
+      </div>
+      <div id="admin-merges-empty" class="empty-state hidden">
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg>
+        <p class="empty-title">Hələ heç bir merge PDF yoxdur</p>
+      </div>
+      <div id="admin-merges-loading" class="empty-state">
+        <p class="empty-title">Yüklənir...</p>
+      </div>
+      <div id="admin-merges-list" class="admin-file-list"></div>
     </section>
   </main>
 </section>

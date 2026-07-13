@@ -639,6 +639,7 @@ input{ font-family: inherit; -webkit-tap-highlight-color: transparent; }
 
 
 .admin-file-list{ display:flex; flex-direction:column; gap:10px; }
+.merge-admin-description{ padding:4px 4px 16px; font-size:14px; color:var(--ink-muted); line-height:1.5; }
 
 
 
@@ -2883,6 +2884,16 @@ html[data-theme="dark"] .contact-pill{
   font-weight: 600;
   color: var(--heading);
   margin: 16px 0 20px;
+}
+.merge-done-actions{
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+.merge-done-actions .btn{
+  padding: 12px 28px;
+  font-size: 15px;
+  font-weight: 600;
 }
 
 /* --- Preview step (step 4): shows the merged PDF before download --- */
