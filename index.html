@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+<title>IST Trust Zone</title>
+<meta name="description" content="Dənizçi sənədlərinin idarə edilməsi platforması">
+<meta name="theme-color" content="#0f2942">
+<link rel="icon" type="image/png" href="assets/logo.png">
+<script>
+/* Applies any previously chosen theme before first paint, so
+   there is no flash of the default (light) theme. */
+(function () {
+  try {
+    var t = localStorage.getItem("ist_theme");
+    if (t === "dark" || t === "blue") document.documentElement.setAttribute("data-theme", t);
+    else document.documentElement.setAttribute("data-theme", "dark");
+  } catch (_) {
+    document.documentElement.setAttribute("data-theme", "dark");
+  }
+})();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css?v=11">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+
+<div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+<!-- Splash screen — shown briefly on every load of index.html -->
+<div id="splash-screen" class="splash-screen">
+  <div class="splash-logo-wrap">
+    <img src="assets/logo.png" alt="IST Trust Zone" class="splash-logo">
+    <div class="splash-loader"><span></span><span></span><span></span></div>
+  </div>
+</div>
+
+<!-- Login screen — shown after the splash if there is no valid session -->
+<div id="login-screen" class="login-screen hidden">
+  <div id="login-card" class="login-card">
+    <img src="assets/logo.png" alt="IST Trust Zone" class="login-logo">
+    <h1 class="login-title">IST Trust Zone</h1>
+    <p class="login-subtitle">Davam etmək üçün şifrəni daxil edin</p>
+    <form id="login-form" class="login-form" autocomplete="off">
+      <input id="login-password" type="password" class="text-input login-input" placeholder="Şifrə" autocomplete="current-password" required>
+      <button type="submit" id="login-submit" class="btn btn-primary login-submit">Daxil ol</button>
+    </form>
+    <p id="login-error" class="login-error"></p>
+  </div>
+</div>
+
+<!-- ===================== USER PANEL ===================== -->
+<section id="user-panel" class="panel user-panel hidden">
+  <header class="user-header">
+    <div class="header-inner">
+      <div class="brand">
+        <img src="assets/logo.png" alt="IST Trust Zone" class="brand-logo">
+        <div class="brand-text">
+          <span class="brand-name">IST Trust Zone</span>
+          <span class="brand-sub">Maritime Documents</span>
+        </div>
+      </div>
+      <div class="search-container" id="search-wrap">
+        <div class="search-box">
+          <input id="user-search" type="text" class="search-field" placeholder="Dinləyicilər arasında axtar..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+          <button id="user-search-clear" class="search-clear" type="button" aria-label="Axtarışı təmizlə" tabindex="-1">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+      </div>
+      <div id="theme-switch" class="theme-switch" role="group" aria-label="Tema seçimi">
+        <button type="button" class="theme-btn" data-theme-value="dark" aria-label="Tünd tema" title="Tünd">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+        </button>
+        <button type="button" class="theme-btn" data-theme-value="blue" aria-label="Mavi tema" title="Mavi">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 3c3.5 4 6 7.4 6 10.5a6 6 0 1 1-12 0C6 10.4 8.5 7 12 3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+      <button id="merge-pdf-btn" class="btn btn-primary merge-pdf-header-btn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6M8 13h8M8 17h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        PDF Birləşdir
+      </button>
+    </div>
+  </header>
+
+  <div class="hero-section">
+    <h1 class="hero-title">Dənizçi Sənədləri Platforması</h1>
+    <p class="hero-subtitle">Bütün sənədləriniz təhlükəsiz bir yerdə — istənilən vaxt, istənilən yerdən əldə edin</p>
+
+  </div>
+
+  <main class="user-main">
+    <div id="items-empty" class="empty-state hidden">
+      <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.2" y2="16.2" stroke-linecap="round"/></svg>
+      <p class="empty-title">Nəticə tapılmadı</p>
+    </div>
+    <div id="items-empty-initial" class="empty-state hidden">
+      <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/><path d="M14 3v5h5"/></svg>
+      <p class="empty-title">Hələ heç bir məlumat yoxdur</p>
+    </div>
+    <div id="items-grid" class="items-grid"></div>
+  </main>
+</section>
+
+<!-- Item detail overlay -->
+<div id="item-detail" class="overlay hidden">
+  <div class="overlay-panel">
+    <div class="overlay-header">
+      <h2 id="item-detail-title" class="overlay-title"></h2>
+      <button id="item-detail-close" class="icon-btn" aria-label="Bağla">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M6 6L18 18M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div id="item-detail-contact" class="item-detail-contact"></div>
+    <div id="item-detail-files" class="file-list"></div>
+    <div id="item-detail-empty" class="empty-state hidden">
+      <p class="empty-title">Bu bölmədə hələ sənəd yoxdur</p>
+    </div>
+  </div>
+</div>
+
+<!-- Merge PDF overlay -->
+<div id="merge-pdf-overlay" class="overlay merge-overlay hidden">
+  <div class="overlay-panel merge-panel">
+    <div class="overlay-header">
+      <h2 class="overlay-title">PDF Birləşdir</h2>
+      <button id="merge-pdf-close" class="icon-btn" aria-label="Bağla">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M6 6L18 18M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+
+    <!-- Step 1: Listener selector -->
+    <div id="merge-step-1" class="merge-step">
+      <p class="merge-step-desc">Birləşdirmək istədiyiniz dinləyiciləri seçin:</p>
+      <div class="merge-search-wrap">
+        <input id="merge-search" type="text" class="text-input" placeholder="Dinləyici axtar..." autocomplete="off">
+      </div>
+      <div id="merge-listeners-list" class="merge-listeners-list"></div>
+      <div id="merge-selected-count" class="merge-selected-count"></div>
+      <button id="merge-next-btn" class="btn btn-primary merge-action-btn" disabled>Davam et</button>
+    </div>
+
+    <!-- Step 2: Name input -->
+    <div id="merge-step-2" class="merge-step hidden">
+      <p class="merge-step-desc">Birləşdirilmiş PDF üçün ad daxil edin:</p>
+      <input id="merge-output-name" type="text" class="text-input" placeholder="PDF adı" autocomplete="off">
+      <div class="merge-action-row">
+        <button id="merge-back-btn" class="btn btn-ghost">Geri</button>
+        <button id="merge-start-btn" class="btn btn-primary">Birləşdir</button>
+      </div>
+    </div>
+
+    <!-- Step 3: Progress -->
+    <div id="merge-step-3" class="merge-step hidden">
+      <div class="merge-progress-wrap">
+        <div class="merge-progress-bar-track">
+          <div id="merge-progress-bar" class="merge-progress-bar-fill" style="width:0%"></div>
+        </div>
+        <p id="merge-progress-text" class="merge-progress-text">Hazırlanır...</p>
+      </div>
+    </div>
+
+    <!-- Step 4: Preview — final PDF must be checked before download -->
+    <div id="merge-step-4" class="merge-step hidden">
+      <p id="merge-preview-warning" class="merge-preview-warning hidden"></p>
+      <div class="merge-preview-frame-wrap">
+        <iframe id="merge-preview-frame" class="merge-preview-frame" title="Birləşdirilmiş PDF ön baxışı"></iframe>
+      </div>
+      <p id="merge-upload-status" class="merge-progress-text merge-upload-status hidden"></p>
+      <div class="merge-action-row">
+        <button id="merge-preview-back-btn" class="btn btn-ghost">Geri</button>
+        <button id="merge-download-btn" class="btn btn-primary">Yüklə</button>
+      </div>
+    </div>
+
+    <!-- Step 5: Done -->
+    <div id="merge-step-5" class="merge-step hidden">
+      <div class="merge-done">
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="1.8"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <p id="merge-done-text" class="merge-done-text">PDF uğurla birləşdirildi!</p>
+        <button id="merge-close-done-btn" class="btn btn-primary">Bağla</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Preview overlay -->
+<div id="preview-overlay" class="overlay preview-overlay hidden">
+  <div class="preview-panel">
+    <div class="overlay-header">
+      <h2 id="preview-title" class="overlay-title"></h2>
+      <button id="preview-close" class="icon-btn" aria-label="Bağla">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M6 6L18 18M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div id="preview-body" class="preview-body"></div>
+  </div>
+</div>
+
+<script type="module" src="js/user.js?v=11"></script>
+</body>
+</html>

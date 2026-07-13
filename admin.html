@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+<title>İdarəetmə Paneli — IST Trust Zone</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0f2942">
+<link rel="icon" type="image/png" href="assets/logo.png">
+<script>
+(function () {
+  try {
+    var t = localStorage.getItem("ist_theme");
+    if (t === "dark" || t === "blue") document.documentElement.setAttribute("data-theme", t);
+    else document.documentElement.setAttribute("data-theme", "dark");
+  } catch (_) {
+    document.documentElement.setAttribute("data-theme", "dark");
+  }
+})();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css?v=11">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body class="auth-pending">
+
+<div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+<div id="auth-check-screen" class="splash-screen">
+  <div class="splash-logo-wrap">
+    <img src="assets/logo.png" alt="IST Trust Zone" class="splash-logo">
+    <div class="splash-loader"><span></span><span></span><span></span></div>
+  </div>
+</div>
+
+<!-- ===================== ADMIN PANEL ===================== -->
+<section id="admin-panel" class="panel admin-panel">
+  <header class="admin-header">
+    <div class="header-inner">
+      <div class="brand">
+        <img src="assets/logo.png" alt="IST Trust Zone" class="brand-logo brand-logo-sm">
+        <span class="admin-label">İdarəetmə paneli</span>
+      </div>
+      <div class="admin-header-actions">
+        <div id="theme-switch" class="theme-switch" role="group" aria-label="Tema seçimi">
+          <button type="button" class="theme-btn" data-theme-value="dark" aria-label="Tünd tema" title="Tünd">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+          </button>
+          <button type="button" class="theme-btn" data-theme-value="blue" aria-label="Mavi tema" title="Mavi">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 3c3.5 4 6 7.4 6 10.5a6 6 0 1 1-12 0C6 10.4 8.5 7 12 3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        <button id="drive-status-btn" class="drive-status" type="button">
+          <span id="drive-status-dot" class="drive-status-dot"></span>
+          <span id="drive-status-text">Google Drive qoşulmayıb</span>
+        </button>
+        <button id="drive-signout-btn" class="btn btn-ghost drive-signout hidden" type="button">Drivedən çıxış</button>
+        <button id="admin-settings-btn" class="btn btn-ghost" type="button">Yeni Şifrə</button>
+        <button id="admin-exit" class="btn btn-ghost">İstifadəçi panelinə qayıt</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="admin-main">
+    <!-- Items list -->
+    <section id="admin-items-view" class="admin-view">
+      <div class="new-listener-section">
+        <h2 class="new-listener-heading">Yeni dinləyici</h2>
+        <div class="new-listener-cards">
+          <button type="button" id="quick-add-card" class="method-card method-card-quick">
+            <div class="method-card-icon">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M12 16V4M12 4l-4.5 4.5M12 4l4.5 4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 15.5V18a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </div>
+            <div class="method-card-text">
+              <span class="method-card-title">Sürətli əlavə et</span>
+              <span class="method-card-desc">Sənədləri sürükləyin — hər sənəd üçün dinləyici avtomatik yaradılsın</span>
+            </div>
+          </button>
+          <button type="button" id="manual-add-card" class="method-card method-card-manual">
+            <div class="method-card-icon">
+              <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.4" stroke="currentColor" stroke-width="1.8"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </div>
+            <div class="method-card-text">
+              <span class="method-card-title">Manual əlavə et</span>
+              <span class="method-card-desc">Ad, telefon və e-mail daxil edərək tək-tək əlavə edin</span>
+            </div>
+          </button>
+        </div>
+
+        <div id="quick-add-panel" class="method-panel">
+          <label id="quick-dropzone" class="dropzone quick-dropzone">
+            <svg class="dropzone-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 16V4M12 4l-4.5 4.5M12 4l4.5 4.5"/><path d="M4 15.5V18a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2.5"/></svg>
+            <div class="dropzone-title">Sənədləri bura sürükləyib buraxın</div>
+            <div class="dropzone-hint">və ya klikləyin</div>
+            <input id="quick-file-input" type="file" hidden multiple>
+          </label>
+          <div id="quick-upload-progress" class="upload-progress-list"></div>
+        </div>
+
+        <div id="manual-add-panel" class="method-panel">
+          <form id="manual-add-form" class="manual-add-form" autocomplete="off">
+            <div class="manual-field">
+              <label class="manual-label" for="manual-add-name">Dinləyici adı</label>
+              <input id="manual-add-name" type="text" class="text-input" placeholder="Dinləyici adı" required autocomplete="off">
+            </div>
+            <div class="manual-field">
+              <label class="manual-label" for="manual-add-phone">Telefon</label>
+              <input id="manual-add-phone" type="tel" class="text-input" placeholder="Telefon nömrəsi" autocomplete="off">
+            </div>
+            <div class="manual-field">
+              <label class="manual-label" for="manual-add-email">E-mail</label>
+              <input id="manual-add-email" type="email" class="text-input" placeholder="E-mail ünvanı" autocomplete="off">
+            </div>
+            <button id="manual-add-submit" type="submit" class="btn btn-primary">Əlavə et</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="admin-search-bar">
+        <div class="admin-search-box">
+          <input id="admin-search" type="text" class="search-field" placeholder="Dinləyicilər arasında axtar..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+          <button id="admin-search-clear" class="search-clear" type="button" aria-label="Axtarışı təmizlə" tabindex="-1">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div id="admin-list-count" class="admin-list-count"></div>
+      <div id="admin-items-table" class="admin-items-grid"></div>
+      <div id="admin-items-empty" class="empty-state hidden">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.2" y2="16.2" stroke-linecap="round"/></svg>
+        <p id="admin-items-empty-text" class="empty-title">Nəticə tapılmadı</p>
+      </div>
+    </section>
+
+    <!-- Files management view (per-item) -->
+    <section id="admin-files-view" class="admin-view hidden">
+      <div class="admin-toolbar">
+        <div class="admin-toolbar-left">
+          <button id="admin-back-to-items" class="icon-btn" aria-label="Geri">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <h1 id="admin-files-title" class="admin-title admin-title-clickable"></h1>
+        </div>
+      </div>
+
+      <div class="contact-fields">
+        <div class="contact-field-row">
+          <span class="contact-field-label">Telefon</span>
+          <input id="admin-item-phone" type="tel" class="text-input" placeholder="Telefon nömrəsi" autocomplete="off">
+        </div>
+        <div class="contact-field-row">
+          <span class="contact-field-label">E-mail</span>
+          <input id="admin-item-email" type="email" class="text-input" placeholder="E-mail ünvanı" autocomplete="off">
+        </div>
+      </div>
+
+      <label id="dropzone" class="dropzone">
+        <svg class="dropzone-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 16V4M12 4l-4.5 4.5M12 4l4.5 4.5"/><path d="M4 15.5V18a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2.5"/></svg>
+        <div class="dropzone-title">Sənədləri bura sürükləyib buraxın</div>
+        <div class="dropzone-hint">və ya klikləyin</div>
+        <input id="file-upload-input" type="file" hidden multiple>
+      </label>
+
+      <div id="upload-progress-list" class="upload-progress-list"></div>
+
+      <div id="admin-files-empty" class="empty-state hidden">
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg>
+        <p class="empty-title">Bu dinləyicidə hələ sənəd yoxdur</p>
+      </div>
+      <div id="admin-files-table" class="admin-file-list"></div>
+    </section>
+
+    <!-- Settings -->
+    <section id="admin-settings-view" class="admin-view hidden">
+      <div class="admin-toolbar">
+        <div class="admin-toolbar-left">
+          <button id="admin-settings-back" class="icon-btn" aria-label="Geri">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <h1 class="admin-title">Yeni Şifrə</h1>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <h2>Giriş şifrəsi</h2>
+        <p id="auth-status-row" class="auth-status-row">
+          <span id="auth-status-dot" class="auth-status-dot"></span>
+          <span id="auth-status-text">Vəziyyət yoxlanılır…</span>
+        </p>
+        <form id="change-password-form" autocomplete="off">
+          <div class="settings-row">
+            <input id="new-password-1" type="password" class="text-input" placeholder="Yeni şifrə" autocomplete="new-password" required minlength="4">
+          </div>
+          <div class="settings-row">
+            <input id="new-password-2" type="password" class="text-input" placeholder="Yeni şifrəni təkrarla" autocomplete="new-password" required minlength="4">
+          </div>
+          <button type="submit" class="btn btn-primary">Şifrəni yadda saxla</button>
+        </form>
+        <p class="settings-hint">Şifrə təyin edildikdən sonra bu brauzer istisna olmaqla bütün istifadəçilər növbəti girişdə yeni şifrəni daxil etməli olacaq.</p>
+
+
+      </div>
+    </section>
+  </main>
+</section>
+
+<!-- Preview overlay -->
+<div id="preview-overlay" class="overlay preview-overlay hidden">
+  <div class="preview-panel">
+    <div class="overlay-header">
+      <h2 id="preview-title" class="overlay-title"></h2>
+      <button id="preview-close" class="icon-btn" aria-label="Bağla">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M6 6L18 18M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div id="preview-body" class="preview-body"></div>
+  </div>
+</div>
+
+<!-- Confirm dialog -->
+<div id="confirm-dialog" class="overlay hidden">
+  <div class="confirm-panel">
+    <p id="confirm-message" class="confirm-message"></p>
+    <div class="confirm-actions">
+      <button id="confirm-cancel" class="btn btn-ghost" style="color:var(--ink-muted);border-color:var(--border-strong);">İmtina</button>
+      <button id="confirm-ok" class="btn btn-danger">Təsdiqlə</button>
+    </div>
+  </div>
+</div>
+
+<!-- Rename dialog -->
+<div id="rename-dialog" class="overlay hidden">
+  <div class="confirm-panel">
+    <p class="confirm-message" id="rename-label">Yeni ad</p>
+    <input id="rename-input" type="text" class="text-input" style="margin-top:12px;" autocomplete="off">
+    <div class="confirm-actions">
+      <button id="rename-cancel" class="btn btn-ghost" style="color:var(--ink-muted);border-color:var(--border-strong);">İmtina</button>
+      <button id="rename-ok" class="btn btn-primary">Yadda saxla</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/admin.js?v=11"></script>
+</body>
+</html>
