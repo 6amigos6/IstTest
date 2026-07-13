@@ -1,34 +1,3 @@
-/* ===========================================================
-   IST Trust Zone — PDF Merge (client-side)
-   Uses pdf-lib to merge multiple PDFs without any server.
-
-   ROOT-CAUSE NOTES (why "Birləşdirilə bilən PDF sənədi tapılmadı"
-   happened, and how this file fixes it):
-
-   1. The old code tried 3 "strategies" to fetch each PDF, but
-      strategies #2 and #3 (raw https://drive.google.com/uc?...
-      URLs) can NEVER succeed from browser JS: drive.google.com
-      does not send Access-Control-Allow-Origin headers, so the
-      fetch() call is blocked by CORS before it even reaches the
-      network tab. They were dead code that only added latency.
-      The only strategy that can ever work from a browser is the
-      official Drive REST API (googleapis.com), which does
-      support CORS — this is also exactly what shared.js's
-      triggerDownload() already relies on elsewhere in this app.
-
-   2. Every failure (missing DB record, deleted file, revoked
-      share permission, corrupted PDF, wrong mime type, etc.) was
-      collapsed into one generic "skipped" bucket with no reason,
-      so there was no way to tell *why* zero pages got merged.
-      This file now runs an explicit pre-flight check per file
-      (checkDriveFile) and keeps a human-readable reason for
-      every skipped listener.
-
-   3. There was no fallback for the case where the file's public
-      share permission failed to apply at upload time. This file
-      adds an authenticated OAuth fallback (via drive.js) when an
-      access token already exists in this browser.
-========================================================== */
 import { googleDriveConfig } from "./firebase-config.js";
 import { getSilentAccessToken, uploadMergedPdf } from "./drive.js";
 
@@ -65,84 +34,180 @@ function isValidPdf(buffer) {
 }
 
 /* ---------------------------------------------------------
+   Parse a Drive API error response body into a human-readable reason.
+--------------------------------------------------------- */
+function parseDriveErrorReason(status, body, authLabel) {
+  let detail = "";
+  try {
+    const j = JSON.parse(body);
+    detail = j.error?.message || j.error?.errors?.[0]?.message || "";
+  } catch (_) {}
+
+  console.warn(`[Drive Check] ${authLabel} uğursuz: HTTP ${status}`, detail || body?.slice(0, 300));
+
+  if (status === 400) {
+    if (detail.includes("not found") || detail.includes("File not found")) return "File ID tapılmadı — Google Drive-da bu ID ilə fayl mövcud deyil";
+    if (detail.includes("API key not valid")) return "API açarı etibarsızdır — Google Cloud Console-da Drive API-nin aktiv olduğunu yoxlayın";
+    if (detail.includes("API key expired")) return "API açarının vaxtı keçib";
+    if (detail.includes("Bad Request")) return `Google Drive API sorğusu səhvdir (400): ${detail.slice(0, 200)}`;
+    if (detail.includes("shared drive") || detail.includes("share drive") || detail.includes("supportsAllDrives")) return "Fayl paylaşılan drive-dadır və supportsAllDrives=true tələb olunur";
+    return `Google Drive API xətası (400): ${detail || "sorğu parametrlərini yoxlayın"}`;
+  }
+  if (status === 403) {
+    if (detail.includes("not been enabled")) return "Google Drive API bu proyekt üçün aktiv deyil — Google Cloud Console-da Drive API-ni aktivləşdirin";
+    if (detail.includes("permission")) return "Fayl üçün icazə yoxdur (paylaşım ayarları düzgün deyil)";
+    if (detail.includes("rate limit") || detail.includes("quota")) return "Google Drive API limiti aşıldı — bir az gözləyin";
+    return "Fayl üçün icazə yoxdur (paylaşım ayarları düzgün deyil)";
+  }
+  if (status === 404) {
+    return "Fayl Google Drive-da tapılmadı (silinib və ya ID yanlışdır)";
+  }
+  if (status === 410) {
+    return "Fayl silinib (Gone)";
+  }
+  return `Google Drive API xətası (${status}): ${detail || "cavab gözlənilməzdir"}`;
+}
+
+/* ---------------------------------------------------------
    Pre-flight check: does this Drive file actually exist,
    belong to this id, and is it readable?
+   Tries API key first, then OAuth fallback.
    Returns { ok: true, meta } or { ok: false, reason }.
 --------------------------------------------------------- */
 async function checkDriveFile(driveFileId) {
   if (!driveFileId) {
+    console.warn("[Drive Check] fileId boşdur");
     return { ok: false, reason: "Bazada Google Drive ID tapılmadı" };
   }
-  let res;
-  try {
-    res = await fetch(
-      `${DRIVE_API}/${driveFileId}?fields=id,name,mimeType,trashed,size&key=${googleDriveConfig.apiKey}`
-    );
-  } catch (err) {
-    return { ok: false, reason: "Şəbəkə xətası: fayl mövcudluğu yoxlanıla bilmədi" };
+  if (driveFileId === "null" || driveFileId === "undefined") {
+    console.warn("[Drive Check] fileId etibarsızdır:", driveFileId);
+    return { ok: false, reason: "Google Drive ID etibarsızdır" };
   }
-  if (res.status === 404) {
-    return { ok: false, reason: "Fayl Google Drive-da tapılmadı (silinib və ya ID yanlışdır)" };
+
+  console.log(`[Drive Check] Yoxlanılır: fileId=${driveFileId}`);
+
+  // Helper: try a single Drive API request with given auth params
+  async function tryCheck(authParams, label) {
+    const params = new URLSearchParams({
+      fields: "id,name,mimeType,trashed,size",
+      supportsAllDrives: "true",
+      ...authParams
+    });
+    const url = `${DRIVE_API}/${driveFileId}?${params.toString()}`;
+    console.log(`[Drive Check] ${label}: HTTP sorğusu göndərilir`);
+    const res = await fetch(url);
+    const body = await res.text().catch(() => "");
+    console.log(`[Drive Check] ${label}: HTTP ${res.status}`, body.slice(0, 500));
+    return { res, body, status: res.status };
   }
-  if (res.status === 403) {
-    return { ok: false, reason: "Fayl üçün icazə yoxdur (paylaşım ayarları düzgün deyil)" };
+
+  // Try 1: API key (works for publicly shared files)
+  let result = await tryCheck({ key: googleDriveConfig.apiKey }, "API Key");
+
+  if (result.status === 200) {
+    const meta = JSON.parse(result.body);
+    if (meta.trashed) {
+      console.warn(`[Drive Check] Fayl səbətdə: ${driveFileId}`);
+      return { ok: false, reason: "Fayl silinib (səbətdədir)" };
+    }
+    if (meta.mimeType && meta.mimeType !== "application/pdf" && meta.mimeType !== "application/octet-stream") {
+      return { ok: false, reason: `Fayl PDF formatında deyil (${meta.mimeType})` };
+    }
+    console.log(`[Drive Check] ✓ API Key ilə təsdiqləndi: ${meta.name} (${meta.mimeType})`);
+    return { ok: true, meta };
   }
-  if (!res.ok) {
-    return { ok: false, reason: `Google Drive API xətası (${res.status})` };
+
+  // Try 2: OAuth Bearer token fallback (for non-public files / shared drives)
+  const token = await getSilentAccessToken().catch(() => null);
+  if (token) {
+    console.log("[Drive Check] API Key uğursuz oldu, OAuth ilə cəhd edilir...");
+    const params = new URLSearchParams({
+      fields: "id,name,mimeType,trashed,size",
+      supportsAllDrives: "true"
+    });
+    const oauthRes = await fetch(`${DRIVE_API}/${driveFileId}?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const oauthBody = await oauthRes.text().catch(() => "");
+    console.log(`[Drive Check] OAuth: HTTP ${oauthRes.status}`, oauthBody.slice(0, 500));
+
+    if (oauthRes.status === 200) {
+      const meta = JSON.parse(oauthBody);
+      if (meta.trashed) {
+        return { ok: false, reason: "Fayl silinib (səbətdədir)" };
+      }
+      if (meta.mimeType && meta.mimeType !== "application/pdf" && meta.mimeType !== "application/octet-stream") {
+        return { ok: false, reason: `Fayl PDF formatında deyil (${meta.mimeType})` };
+      }
+      console.log(`[Drive Check] ✓ OAuth ilə təsdiqləndi: ${meta.name}`);
+      return { ok: true, meta };
+    }
+
+    // Both API key and OAuth failed
+    const reason = parseDriveErrorReason(oauthRes.status, oauthBody, "OAuth");
+    return { ok: false, reason };
   }
-  const meta = await res.json().catch(() => null);
-  if (!meta) {
-    return { ok: false, reason: "Fayl məlumatı oxuna bilmədi" };
-  }
-  if (meta.trashed) {
-    return { ok: false, reason: "Fayl silinib (səbətdədir)" };
-  }
-  if (meta.mimeType && meta.mimeType !== "application/pdf" && meta.mimeType !== "application/octet-stream") {
-    return { ok: false, reason: `Fayl PDF formatında deyil (${meta.mimeType})` };
-  }
-  return { ok: true, meta };
+
+  // No OAuth token — report based on API key error
+  const reason = parseDriveErrorReason(result.status, result.body, "API Key");
+  return { ok: false, reason };
 }
 
 /* ---------------------------------------------------------
    Fetch a PDF's bytes from Google Drive.
-   Attempt 1: Drive API v3 with the app's API key — this is
-              the only endpoint that supports CORS for browser
-              fetch(), and is proven to work elsewhere in this
-              app (see shared.js -> triggerDownload).
-   Attempt 2: If a Drive OAuth token already exists in this
-              browser (admin previously connected Drive), retry
-              authenticated as a fallback for files whose public
-              share permission failed to apply.
+   Strategy: OAuth Bearer token first (alt=media requires auth),
+   then API key fallback for publicly shared files.
+   Returns ArrayBuffer of PDF bytes.
 --------------------------------------------------------- */
 async function fetchPdfFromDrive(driveFileId) {
-  const attempts = [
-    { url: `${DRIVE_API}/${driveFileId}?alt=media&key=${googleDriveConfig.apiKey}`, headers: {} },
-  ];
+  const attempts = [];
 
+  // Attempt 1: OAuth Bearer token (alt=media REQUIRES authentication)
   const token = await getSilentAccessToken().catch(() => null);
   if (token) {
+    console.log(`[Drive Fetch] OAuth ilə cəhd edilir: ${driveFileId}`);
     attempts.push({
-      url: `${DRIVE_API}/${driveFileId}?alt=media`,
+      url: `${DRIVE_API}/${driveFileId}?alt=media&supportsAllDrives=true`,
       headers: { Authorization: `Bearer ${token}` }
     });
   }
+
+  // Attempt 2: API key (only works for publicly shared files)
+  console.log(`[Drive Fetch] API Key ilə cəhd edilir: ${driveFileId}`);
+  attempts.push({
+    url: `${DRIVE_API}/${driveFileId}?alt=media&supportsAllDrives=true&key=${googleDriveConfig.apiKey}`,
+    headers: {}
+  });
 
   let lastError = null;
   for (const attempt of attempts) {
     try {
       const res = await fetch(attempt.url, { headers: attempt.headers });
+      console.log(`[Drive Fetch] HTTP ${res.status}`, res.ok ? "OK" : "FAILED");
       if (!res.ok) {
-        lastError = new Error(`Drive-dan endirilə bilmədi (HTTP ${res.status})`);
+        const body = await res.text().catch(() => "");
+        let detail = "";
+        try { const j = JSON.parse(body); detail = j.error?.message || ""; } catch (_) {}
+        console.warn(`[Drive Fetch] HTTP ${res.status}: ${detail || body?.slice(0, 200)}`);
+        lastError = new Error(detail
+          ? `Drive-dan endirilə bilmədi (HTTP ${res.status}: ${detail})`
+          : `Drive-dan endirilə bilmədi (HTTP ${res.status})`);
         continue;
       }
       const buffer = await res.arrayBuffer();
-      if (isValidPdf(buffer)) return buffer;
+      if (isValidPdf(buffer)) {
+        console.log(`[Drive Fetch] ✓ PDF uğurla endirildi (${buffer.byteLength} bayt)`);
+        return buffer;
+      }
+      console.warn(`[Drive Fetch] Alınan fayl PDF formatında deyil (${buffer.byteLength} bayt)`);
       lastError = new Error("Alınan fayl PDF formatında deyil");
     } catch (err) {
+      console.warn(`[Drive Fetch] Şəbəkə xətası:`, err);
       lastError = err;
     }
   }
 
+  console.error(`[Drive Fetch] Bütün cəhdlər uğursuz oldu`);
   throw lastError || new Error("PDF yüklənə bilmədi");
 }
 
@@ -161,6 +226,8 @@ export async function mergePdfs(files, onProgress) {
   const mergedPdf = await PDFDocument.create();
   const skipped = [];
 
+  console.log(`[Merge] ${files.length} fayl birləşdirilir:`, files.map(f => `${f.listenerName} (${f.driveFileId})`));
+
   // Selection order is preserved because we iterate `files` in place —
   // page ranges land in the merged PDF in exactly the order listeners
   // were selected in (e.g. Arif then Qasım => Arif's pages first).
@@ -170,18 +237,21 @@ export async function mergePdfs(files, onProgress) {
     if (onProgress) onProgress(i, files.length, label);
 
     // Step 1: does the referenced Drive file actually exist / belong
-    // to this listener / is readable? (fixes silent generic failures)
+    // to this listener / is readable?
+    console.log(`[Merge] Yoxlanılır (${i + 1}/${files.length}): ${label} — fileId=${file.driveFileId}`);
     const check = await checkDriveFile(file.driveFileId);
     if (!check.ok) {
-      console.warn(`Merge-ə daxil edilmədi (${label}): ${check.reason}`);
+      console.warn(`[Merge] ➜ Atlanır (${label}): ${check.reason}`);
       skipped.push({ name: label, reason: check.reason });
       continue;
     }
 
     try {
+      console.log(`[Merge] Endirilir: ${label} (${file.driveFileId})`);
       const pdfBytes = await fetchPdfFromDrive(file.driveFileId);
       const pdf = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
       const pageIndices = pdf.getPageIndices();
+      console.log(`[Merge] ✓ ${label}: ${pageIndices.length} səhifə əlavə edilir`);
       if (pageIndices.length === 0) {
         skipped.push({ name: label, reason: "PDF-də səhifə yoxdur" });
         continue;
@@ -192,7 +262,7 @@ export async function mergePdfs(files, onProgress) {
       const reason = /encrypt/i.test(err.message || "")
         ? "PDF şifrələnib və açıla bilmədi"
         : (err.message || "PDF oxuna bilmədi (zədələnmiş fayl?)");
-      console.warn(`Merge-ə daxil edilmədi (${label}):`, err);
+      console.warn(`[Merge] ➜ Atlanır (${label}):`, err);
       skipped.push({ name: label, reason });
     }
   }
@@ -200,6 +270,7 @@ export async function mergePdfs(files, onProgress) {
   if (onProgress) onProgress(files.length, files.length, "");
 
   if (mergedPdf.getPageCount() === 0) {
+    console.error(`[Merge] Bütün fayllar uğursuz oldu:`, skipped);
     const details = skipped.map((s) => `${s.name} — ${s.reason}`).join("; ");
     throw new Error(
       "Birləşdirilə bilən PDF sənədi tapılmadı." + (details ? ` (${details})` : "")
@@ -207,6 +278,7 @@ export async function mergePdfs(files, onProgress) {
   }
 
   const mergedBytes = await mergedPdf.save();
+  console.log(`[Merge] ✓ ${mergedPdf.getPageCount()} səhifə, ${mergedBytes.length} bayt. Atlanan: ${skipped.length}`);
   return { mergedBytes, skipped };
 }
 

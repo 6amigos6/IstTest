@@ -440,16 +440,38 @@ if (mergeStartBtn) {
       const listenerNames = [];
       const missingPdfListeners = [];
 
+      // === PRE-MERGE DIAGNOSTICS ===
+      // Log all selected listeners and their PDF file details to console
+      // so Google Drive API errors can be traced back to specific files.
+      console.group("[Merge] Seçilmiş dinləyicilərin PDF yoxlanışı");
+      console.log("Seçilmiş ID-lər:", mergeSelectedIds);
+
       for (const itemId of mergeSelectedIds) {
         const item = itemsData[itemId];
-        if (!item || !item.files) {
-          missingPdfListeners.push(item?.name || "Naməlum");
+        if (!item) {
+          console.warn(`[Merge] Dinləyici tapılmadı: ${itemId}`);
+          missingPdfListeners.push("Naməlum (ID: " + itemId + ")");
           continue;
         }
+        console.log(`[Merge] ${item.name} (${itemId})`);
+
+        if (!item.files || Object.keys(item.files).length === 0) {
+          console.warn(`[Merge]   ➜ Fayl yoxdur`);
+          missingPdfListeners.push(item.name);
+          continue;
+        }
+
         // Get files sorted by date (most recent first), find the first PDF
         const files = getFilesOf(itemsData, itemId);
+        console.log(`[Merge]   Cəmi fayl: ${files.length}`);
+
         const pdf = files.find((f) => (f.name || "").toLowerCase().endsWith(".pdf") && f.driveFileId);
         if (pdf) {
+          console.log(`[Merge]   ✓ PDF tapıldı: "${pdf.name}"`);
+          console.log(`[Merge]     driveFileId: ${pdf.driveFileId}`);
+          console.log(`[Merge]     mimeType: ${pdf.mimeType || "bilinmir"}`);
+          console.log(`[Merge]     size: ${pdf.size || "bilinmir"} bayt`);
+          console.log(`[Merge]     tarix: ${new Date(pdf.date).toLocaleString("az-AZ")}`);
           pdfFiles.push({
             driveFileId: pdf.driveFileId,
             name: pdf.name,
@@ -458,9 +480,19 @@ if (mergeStartBtn) {
           listenerIds.push(itemId);
           listenerNames.push(item.name);
         } else {
+          const hasPdfName = files.some(f => (f.name || "").toLowerCase().endsWith(".pdf"));
+          const hasDriveId = files.some(f => f.driveFileId);
+          console.warn(`[Merge]   ✗ PDF tapılmadı`);
+          if (!hasPdfName) console.warn(`[Merge]     Səbəb: heç bir fayl .pdf uzantılı deyil`);
+          if (!hasDriveId) console.warn(`[Merge]     Səbəb: heç bir faylın driveFileId-si yoxdur`);
+          if (hasPdfName && !files.find(f => (f.name || "").toLowerCase().endsWith(".pdf") && f.driveFileId)) {
+            console.warn(`[Merge]     Səbəb: PDF faylları var, lakin driveFileId boşdur (köhnə yükləmələr)`);
+          }
           missingPdfListeners.push(item.name || "Naməlum");
         }
       }
+      console.log("[Merge] Birləşdiriləcək fayllar:", pdfFiles.length);
+      console.groupEnd();
 
       // Warn about listeners without PDFs
       if (missingPdfListeners.length > 0) {
