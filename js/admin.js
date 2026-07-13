@@ -11,7 +11,7 @@ import {
   mergesRef
 } from "./shared.js";
 import { uploadToDrive, deleteFromDrive, ensureAccessToken, isDriveConnected, signOutDrive, checkDuplicateInDrive, renameFileOnDrive } from "./drive.js";
-import { set, update, remove, child } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+import { set, update, remove, child, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 import { initThemeSwitch } from "./theme.js";
 import { hasValidSession, changePassword, getCurrentAuthVersion } from "./auth.js";
 
@@ -729,21 +729,13 @@ function loadMerges() {
   // Unsubscribe previous listener
   if (mergesUnsub) { mergesUnsub(); mergesUnsub = null; }
 
-  // Real-time listener on Firebase merges ref
-  mergesUnsub = subscribeMerges((data) => {
+  // Real-time listener on Firebase merges ref using already-imported onValue
+  mergesUnsub = onValue(mergesRef, (snapshot) => {
+    const data = snapshot.val() || {};
     adminMergeData = data;
     renderMergesList(data);
     if (adminMergesLoading) adminMergesLoading.classList.add("hidden");
   });
-}
-
-function subscribeMerges(callback) {
-  const { onValue } = await_import_firebase();
-  return onValue(mergesRef, (snapshot) => callback(snapshot.val() || {}));
-}
-
-function await_import_firebase() {
-  return import("https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js");
 }
 
 function renderMergesList(data) {
@@ -817,8 +809,7 @@ async function renameMergePdf(entry) {
     if (entry.driveFileId) {
       await renameFileOnDrive(entry.driveFileId, newName);
     }
-    const { update: fbUpdate, child: fbChild } = await_import_firebase();
-    await fbUpdate(fbChild(mergesRef, entry.id), { name: newName });
+    await update(child(mergesRef, entry.id), { name: newName });
     showToast("PDF adı dəyişdirildi", "success");
   } catch (err) {
     console.error(err);
@@ -836,8 +827,7 @@ async function deleteMergePdf(entry) {
     if (entry.driveFileId) {
       await deleteFromDrive(entry.driveFileId);
     }
-    const { remove: fbRemove, child: fbChild } = await_import_firebase();
-    await fbRemove(fbChild(mergesRef, entry.id));
+    await remove(child(mergesRef, entry.id));
     showToast("PDF silindi", "success");
   } catch (err) {
     console.error(err);
