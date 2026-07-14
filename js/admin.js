@@ -7,15 +7,13 @@ import {
   itemsRef, uid, subscribeItems, getSortedItems, getFilesOf,
   escapeHtml, formatBytes, formatDate, getExtension, FILE_COLOR_MAP,
   showToast, askConfirm, askRename,
-  openPreview, initPreviewOverlay, triggerDownload, closePreview,
-  db
+  openPreview, initPreviewOverlay, triggerDownload, db
 } from "./shared.js";
 import { uploadToDrive, deleteFromDrive, ensureAccessToken, isDriveConnected, signOutDrive, checkDuplicateInDrive, renameFileOnDrive } from "./drive.js";
-import { set, update, remove, child, onValue, ref as dbRef } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+import { set, update, remove, child } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+import { onValue, ref } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 import { initThemeSwitch } from "./theme.js";
 import { hasValidSession, changePassword, getCurrentAuthVersion } from "./auth.js";
-
-const mergesRef = dbRef(db, "merges");
 
 initThemeSwitch("theme-switch");
 
@@ -36,8 +34,9 @@ initThemeSwitch("theme-switch");
 --------------------------------------------------------- */
 let itemsData = {};
 let adminActiveItemId = null;
-let adminMergeData = {};
 let adminSearchTerm = "";
+let adminMergeData = {};
+const mergesRef = ref(db, "merges");
 
 /* ---------------------------------------------------------
    DOM refs
@@ -50,12 +49,6 @@ const adminFilesView = $("admin-files-view");
 const adminSettingsView = $("admin-settings-view");
 const adminSettingsBtn = $("admin-settings-btn");
 const adminSettingsBack = $("admin-settings-back");
-const adminMergesBtn = $("admin-merges-btn");
-const adminMergesView = $("admin-merges-view");
-const adminMergesBack = $("admin-merges-back");
-const adminMergesList = $("admin-merges-list");
-const adminMergesEmpty = $("admin-merges-empty");
-const adminMergesLoading = $("admin-merges-loading");
 const changePasswordForm = $("change-password-form");
 const newPassword1 = $("new-password-1");
 const newPassword2 = $("new-password-2");
@@ -93,6 +86,12 @@ const manualAddSubmit = $("manual-add-submit");
 
 /* Settings elements */
 const authStatusDot = $("auth-status-dot");
+const adminMergesBtn = $("admin-merges-btn");
+const adminMergesView = $("admin-merges-view");
+const adminMergesBack = $("admin-merges-back");
+const adminMergesList = $("admin-merges-list");
+const adminMergesEmpty = $("admin-merges-empty");
+const adminMergesLoading = $("admin-merges-loading");
 const authStatusText = $("auth-status-text");
 
 initPreviewOverlay();
@@ -147,9 +146,6 @@ adminSettingsBack.addEventListener("click", () => {
   adminItemsView.classList.remove("hidden");
 });
 
-/* ---------------------------------------------------------
-   Merges view navigation
---------------------------------------------------------- */
 adminMergesBtn.addEventListener("click", () => {
   adminItemsView.classList.add("hidden");
   adminFilesView.classList.add("hidden");
@@ -157,7 +153,6 @@ adminMergesBtn.addEventListener("click", () => {
   adminMergesView.classList.remove("hidden");
   loadMerges();
 });
-
 adminMergesBack.addEventListener("click", () => {
   adminMergesView.classList.add("hidden");
   adminItemsView.classList.remove("hidden");
@@ -718,8 +713,13 @@ function updateProgressRow(id, pct) {
   row.querySelector(".upload-progress-bar-fill").style.width = pct + "%";
   row.querySelector(".progress-pct").textContent = pct + "%";
 }
+function removeProgressRow(id) {
+  const row = document.getElementById("progress-" + id);
+  if (row) row.remove();
+}
+
 /* ---------------------------------------------------------
-   MERGES — Load, render, and manage merged PDFs from Firebase
+   MERGES — Load, render, and manage merged PDFs
 --------------------------------------------------------- */
 let mergesUnsub = null;
 
@@ -728,10 +728,8 @@ function loadMerges() {
   if (adminMergesEmpty) adminMergesEmpty.classList.add("hidden");
   if (adminMergesList) adminMergesList.innerHTML = "";
 
-  // Unsubscribe previous listener
   if (mergesUnsub) { mergesUnsub(); mergesUnsub = null; }
 
-  // Real-time listener on Firebase merges ref using already-imported onValue
   mergesUnsub = onValue(mergesRef, (snapshot) => {
     const data = snapshot.val() || {};
     adminMergeData = data;
@@ -755,75 +753,60 @@ function renderMergesList(data) {
   adminMergesEmpty.classList.add("hidden");
 
   adminMergesList.innerHTML = entries.map((m) => {
-    const sizeStr = m.size ? formatBytes(m.size) : "Naməlum";
-    const dateStr = m.createdAt ? formatDate(m.createdAt) : "Naməlum";
-    return \`
-      <div class="file-row merge-row" data-id="\${m.id}">
-        <div class="file-icon" style="background:#e74c3c22;color:#e74c3c;">
-          <svg viewBox="0 0 24 24" fill="none" width="20" height="20"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" stroke="currentColor" stroke-width="1.8"/><path d="M14 2v6h6M10 13l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </div>
-        <div class="file-info">
-          <div class="file-name">\${escapeHtml(m.name || "Adsız PDF")}</div>
-          <div class="file-meta">\${sizeStr} · \${dateStr}</div>
-        </div>
-        <div class="file-actions">
-          <button class="btn btn-outline btn-sm" data-action="preview" data-id="\${m.id}" title="Bax">Bax</button>
-          <button class="btn btn-outline btn-sm" data-action="rename" data-id="\${m.id}" title="Adı dəyiş">Ad dəyiş</button>
-          <button class="btn btn-danger btn-sm" data-action="delete" data-id="\${m.id}" title="Sil">Sil</button>
-        </div>
-      </div>\`;
+    const sizeStr = m.size ? formatBytes(m.size) : "Nam\u0259lum";
+    const dateStr = m.createdAt ? formatDate(m.createdAt) : "Nam\u0259lum";
+    return '<div class="file-row merge-row" data-id="' + m.id + '">' +
+      '<div class="file-icon" style="background:#e74c3c22;color:#e74c3c;">' +
+      '<svg viewBox="0 0 24 24" fill="none" width="20" height="20"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" stroke="currentColor" stroke-width="1.8"/><path d="M14 2v6h6M10 13l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+      '</div><div class="file-info">' +
+      '<div class="file-name">' + escapeHtml(m.name || "Ads\u0131z PDF") + '</div>' +
+      '<div class="file-meta">' + sizeStr + ' \u00b7 ' + dateStr + '</div>' +
+      '</div><div class="file-actions">' +
+      '<button class="btn btn-outline btn-sm" data-action="preview" data-id="' + m.id + '" title="Bax">Bax</button>' +
+      '<button class="btn btn-outline btn-sm" data-action="rename" data-id="' + m.id + '" title="Ad\u0131 d\u0259yi\u015f">Ad d\u0259yi\u015f</button>' +
+      '<button class="btn btn-danger btn-sm" data-action="delete" data-id="' + m.id + '" title="Sil">Sil</button>' +
+      '</div></div>';
   }).join("");
 
-  // Wire action buttons
   adminMergesList.querySelectorAll("[data-action]").forEach((btn) => {
     const entry = entries.find((e) => e.id === btn.dataset.id);
     if (!entry) return;
-    if (btn.dataset.action === "preview") btn.addEventListener("click", () => previewMergePdf(entry));
-    if (btn.dataset.action === "rename") btn.addEventListener("click", () => renameMergePdf(entry));
-    if (btn.dataset.action === "delete") btn.addEventListener("click", () => deleteMergePdf(entry));
+    if (btn.dataset.action === "preview") btn.addEventListener("click", function() { previewMergePdf(entry); });
+    if (btn.dataset.action === "rename") btn.addEventListener("click", function() { renameMergePdf(entry); });
+    if (btn.dataset.action === "delete") btn.addEventListener("click", function() { deleteMergePdf(entry); });
   });
 }
 
-/* ---------------------------------------------------------
-   Preview a merged PDF using the preview overlay
---------------------------------------------------------- */
 function previewMergePdf(entry) {
   if (!entry.driveFileId) {
-    showToast("Bu merge qeydində Drive ID yoxdur", "warning");
+    showToast("Bu merge qeydind\u0259 Drive ID yoxdur", "warning");
     return;
   }
-  const fileObj = {
+  openPreview({
     name: entry.name || "Merge PDF",
     driveFileId: entry.driveFileId,
     viewUrl: "https://drive.google.com/file/d/" + entry.driveFileId + "/preview",
     url: "https://drive.google.com/uc?export=download&id=" + entry.driveFileId
-  };
-  openPreview(fileObj);
+  });
 }
 
-/* ---------------------------------------------------------
-   Rename a merged PDF (Drive + Firebase)
---------------------------------------------------------- */
 async function renameMergePdf(entry) {
-  const newName = await askRename("PDF-in yeni adı", entry.name || "");
+  const newName = await askRename("PDF-in yeni ad\u0131", entry.name || "");
   if (!newName || newName === entry.name) return;
   try {
     if (entry.driveFileId) {
       await renameFileOnDrive(entry.driveFileId, newName);
     }
     await update(child(mergesRef, entry.id), { name: newName });
-    showToast("PDF adı dəyişdirildi", "success");
+    showToast("PDF ad\u0131 d\u0259yi\u015fdirildi", "success");
   } catch (err) {
     console.error(err);
-    showToast(err.message || "Ad dəyişdirilərkən xəta baş verdi", "error");
+    showToast(err.message || "Ad d\u0259yi\u015fdiril\u0259rk\u0259n x\u0259ta ba\u015f verdi", "error");
   }
 }
 
-/* ---------------------------------------------------------
-   Delete a merged PDF (Drive + Firebase)
---------------------------------------------------------- */
 async function deleteMergePdf(entry) {
-  const ok = await askConfirm(\`"\${entry.name || "Adsız PDF"}" silmək istədiyinizə əminsiniz?\`);
+  const ok = await askConfirm('"' + (entry.name || "Ads\u0131z PDF") + '" silm\u0259k ist\u0259diyiniz\u0259 \u0259minsiniz?');
   if (!ok) return;
   try {
     if (entry.driveFileId) {
@@ -833,30 +816,6 @@ async function deleteMergePdf(entry) {
     showToast("PDF silindi", "success");
   } catch (err) {
     console.error(err);
-    showToast(err.message || "Silinərkən xəta baş verdi", "error");
+    showToast(err.message || "Silin\u0259rk\u0259n x\u0259ta ba\u015f verdi", "error");
   }
-}
-
-/* ---------------------------------------------------------
-   Progress helpers
---------------------------------------------------------- */
-function addProgressRow(id, name, container) {
-  const row = document.createElement("div");
-  row.className = "upload-progress-row";
-  row.id = "progress-" + id;
-  row.innerHTML = \`
-    <span class="upload-progress-name">\${escapeHtml(name)}</span>
-    <div class="upload-progress-bar-track"><div class="upload-progress-bar-fill" style="width:0%"></div></div>
-    <span class="progress-pct">0%</span>\`;
-  container.appendChild(row);
-}
-function updateProgressRow(id, pct) {
-  const row = document.getElementById("progress-" + id);
-  if (!row) return;
-  row.querySelector(".upload-progress-bar-fill").style.width = pct + "%";
-  row.querySelector(".progress-pct").textContent = pct + "%";
-}
-function removeProgressRow(id) {
-  const row = document.getElementById("progress-" + id);
-  if (row) row.remove();
 }
